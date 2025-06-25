@@ -1,123 +1,138 @@
-# Claude Code SDK for Python
+# Claude Code SDK for Rust
 
-Python SDK for Claude Code. See the [Claude Code SDK documentation](https://docs.anthropic.com/en/docs/claude-code/sdk) for more information.
+Rust SDK for Claude Code. See the [Claude Code SDK documentation](https://docs.anthropic.com/en/docs/claude-code/sdk) for more information.
 
 ## Installation
 
-```bash
-pip install claude-code-sdk
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+claude-code-sdk = "0.1.0"
 ```
 
 **Prerequisites:**
-- Python 3.10+
+- Rust 1.70+
 - Node.js 
 - Claude Code: `npm install -g @anthropic-ai/claude-code`
 
 ## Quick Start
 
-```python
-import anyio
-from claude_code_sdk import query
+```rust
+use claude_code_sdk::query;
 
-async def main():
-    async for message in query(prompt="What is 2 + 2?"):
-        print(message)
-
-anyio.run(main)
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut stream = query("What is 2 + 2?", None).await?;
+    
+    while let Some(message) = stream.next().await {
+        match message {
+            Ok(msg) => println!("{:?}", msg),
+            Err(e) => eprintln!("Error: {}", e),
+        }
+    }
+    
+    Ok(())
+}
 ```
 
 ## Usage
 
 ### Basic Query
 
-```python
-from claude_code_sdk import query, ClaudeCodeOptions, AssistantMessage, TextBlock
+```rust
+use claude_code_sdk::{query, ClaudeCodeOptions, Message};
 
-# Simple query
-async for message in query(prompt="Hello Claude"):
-    if isinstance(message, AssistantMessage):
-        for block in message.content:
-            if isinstance(block, TextBlock):
-                print(block.text)
+// Simple query
+let mut stream = query("Hello Claude", None).await?;
+while let Some(message) = stream.next().await {
+    if let Ok(Message::Assistant(msg)) = message {
+        for block in &msg.content {
+            if let ContentBlock::Text(text_block) = block {
+                println!("{}", text_block.text);
+            }
+        }
+    }
+}
 
-# With options
-options = ClaudeCodeOptions(
-    system_prompt="You are a helpful assistant",
-    max_turns=1
-)
+// With options
+let options = ClaudeCodeOptions {
+    system_prompt: Some("You are a helpful assistant".to_string()),
+    max_turns: Some(1),
+    ..Default::default()
+};
 
-async for message in query(prompt="Tell me a joke", options=options):
-    print(message)
+let mut stream = query("Tell me a joke", Some(options)).await?;
 ```
 
 ### Using Tools
 
-```python
-options = ClaudeCodeOptions(
-    allowed_tools=["Read", "Write", "Bash"],
-    permission_mode='acceptEdits'  # auto-accept file edits
-)
+```rust
+let options = ClaudeCodeOptions {
+    allowed_tools: Some(vec!["Read".to_string(), "Write".to_string(), "Bash".to_string()]),
+    permission_mode: Some("acceptEdits".to_string()),
+    ..Default::default()
+};
 
-async for message in query(
-    prompt="Create a hello.py file", 
-    options=options
-):
-    # Process tool use and results
-    pass
+let mut stream = query("Create a hello.rs file", Some(options)).await?;
 ```
 
 ### Working Directory
 
-```python
-from pathlib import Path
+```rust
+use std::path::PathBuf;
 
-options = ClaudeCodeOptions(
-    cwd="/path/to/project"  # or Path("/path/to/project")
-)
+let options = ClaudeCodeOptions {
+    cwd: Some(PathBuf::from("/path/to/project")),
+    ..Default::default()
+};
 ```
 
 ## API Reference
 
-### `query(prompt, options=None)`
+### `query(prompt, options)`
 
 Main async function for querying Claude.
 
 **Parameters:**
-- `prompt` (str): The prompt to send to Claude
-- `options` (ClaudeCodeOptions): Optional configuration
+- `prompt: &str` - The prompt to send to Claude
+- `options: Option<ClaudeCodeOptions>` - Optional configuration
 
-**Returns:** AsyncIterator[Message] - Stream of response messages
+**Returns:** `Result<MessageStream, ClaudeSDKError>` - Stream of response messages
 
 ### Types
 
-See [src/claude_code_sdk/types.py](src/claude_code_sdk/types.py) for complete type definitions:
+See the library documentation for complete type definitions:
 - `ClaudeCodeOptions` - Configuration options
-- `AssistantMessage`, `UserMessage`, `SystemMessage`, `ResultMessage` - Message types
-- `TextBlock`, `ToolUseBlock`, `ToolResultBlock` - Content blocks
+- `Message` - Enum for different message types
+- `ContentBlock` - Enum for different content block types
 
 ## Error Handling
 
-```python
-from claude_code_sdk import (
-    ClaudeSDKError,      # Base error
-    CLINotFoundError,    # Claude Code not installed
-    CLIConnectionError,  # Connection issues
-    ProcessError,        # Process failed
-    CLIJSONDecodeError,  # JSON parsing issues
-)
+```rust
+use claude_code_sdk::{
+    ClaudeSDKError,
+    query,
+};
 
-try:
-    async for message in query(prompt="Hello"):
-        pass
-except CLINotFoundError:
-    print("Please install Claude Code")
-except ProcessError as e:
-    print(f"Process failed with exit code: {e.exit_code}")
-except CLIJSONDecodeError as e:
-    print(f"Failed to parse response: {e}")
+match query("Hello", None).await {
+    Ok(mut stream) => {
+        while let Some(message) = stream.next().await {
+            match message {
+                Ok(msg) => println!("{:?}", msg),
+                Err(e) => eprintln!("Stream error: {}", e),
+            }
+        }
+    }
+    Err(ClaudeSDKError::CLINotFound) => {
+        eprintln!("Please install Claude Code");
+    }
+    Err(ClaudeSDKError::ProcessError { exit_code, .. }) => {
+        eprintln!("Process failed with exit code: {}", exit_code);
+    }
+    Err(e) => eprintln!("Error: {}", e),
+}
 ```
-
-See [src/claude_code_sdk/_errors.py](src/claude_code_sdk/_errors.py) for all error types.
 
 ## Available Tools
 
@@ -125,7 +140,7 @@ See the [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-co
 
 ## Examples
 
-See [examples/quick_start.py](examples/quick_start.py) for a complete working example.
+See the `examples/` directory for complete working examples.
 
 ## License
 
